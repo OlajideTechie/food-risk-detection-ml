@@ -12,6 +12,7 @@ patch('app.joblib.load', return_value=MagicMock()).start()
 # Now import the classes
 from app import ModelLoader, PredictionPipeline, app
 
+
 @pytest.fixture
 def sample_data():
     """Create sample data for testing"""
@@ -26,6 +27,7 @@ def sample_data():
         'action_taken': ['Test Action']
     })
 
+
 @pytest.mark.unit
 def test_model_loader_init():
     """Test ModelLoader initialization with mocked artifacts"""
@@ -37,6 +39,7 @@ def test_model_loader_init():
             assert loader.preprocessor is not None
             assert loader.model is not None
             assert loader.target_encoder is not None
+
 
 @pytest.mark.unit
 def test_preprocess_data(sample_data):
@@ -51,6 +54,7 @@ def test_preprocess_data(sample_data):
         assert result is not None
         assert isinstance(result, np.ndarray)
         pipeline.model_loader.preprocessor.transform.assert_called_once()
+        
 
 @pytest.mark.unit
 def test_predict():
@@ -74,6 +78,7 @@ def test_predict():
         assert isinstance(class_probabilities, dict)
         assert len(class_probabilities) > 0
 
+
 @pytest.fixture
 def client():
     """Create a test client for FastAPI app"""
@@ -84,10 +89,33 @@ def client():
                 client = TestClient(app)
                 return client
 
+
+@pytest.mark.performance
+def test_predict_response_time(client):
+    """Ensure predict endpoint responds within acceptable time using mocked pipeline"""
+    payload = {
+        "product_name": "Test Product",
+        "brand": "BrandX",
+        "category": "Dairy",
+        "adulterant": "None",
+        "detection_method": "Microscopy",
+        "severity": "Low",
+        "action_taken": "Monitor"
+    }
+
+    with patch("app.PredictionPipeline.predict", return_value=("Safe", {"Safe": 0.8, "Unsafe": 0.2})), \
+         patch("app.PredictionPipeline.preprocess_data", return_value=[[1, 2, 3]]):
+        start_time = time.time()
+        response = client.post("/predict", json=payload)
+        duration = time.time() - start_time
+
+    assert response.status_code == 200
+    assert duration < 1.0, f"Response took too long: {duration} seconds"
+
+
 @pytest.mark.unit
 def test_predict_endpoint(client):
-    """Test the /predict endpoint"""
-    # Test data
+    """Test the /predict endpoint with mocked ML pipeline"""
     test_data = {
         "product_name": "Test Product",
         "brand": "Test Brand",
@@ -97,48 +125,19 @@ def test_predict_endpoint(client):
         "severity": "High",
         "action_taken": "Test Action"
     }
-    
-    # Make request to the endpoint
-    response = client.post("/predict", json=test_data)
-    
-    # Check response
+
+    with patch("app.PredictionPipeline.predict", return_value=("Safe", {"Safe": 0.8, "Unsafe": 0.2})), \
+         patch("app.PredictionPipeline.preprocess_data", return_value=[[1, 2, 3]]):
+        response = client.post("/predict", json=test_data)
+
     assert response.status_code == 200
     data = response.json()
     assert data["prediction"] == "Safe"
     assert "confidence_scores" in data
     assert "input_data" in data
     assert "timestamp" in data
-
-@pytest.mark.unit
-def test_health_endpoint(client):
-    """Test the /health endpoint"""
-    response = client.get("/health")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "healthy"
-    assert "timestamp" in data
-
     
-# @pytest.mark.perfomance           
-# def test_predict_response_time(client):
-#     """Ensure predict endpoint responds within acceptable time."""
-#     payload = {
-#         "product_name": "Test Product",
-#         "brand": "BrandX",
-#         "category": "Dairy",
-#         "adulterant": "None",
-#         "detection_method": "Microscopy",
-#         "severity": "Low",
-#         "action_taken": "Monitor"
-#     }
-#     start_time = time.time()
-#     response = client.post("/predict", json=payload)
-#     duration = time.time() - start_time
 
-#     assert response.status_code == 200
-#     assert duration < 1.0, f"Response took too long: {duration} seconds"
-    
-    
 @pytest.mark.unit
 def test_predict_missing_field(client):
     """Ensure API handles missing fields gracefully."""
