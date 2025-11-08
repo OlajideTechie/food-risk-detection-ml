@@ -1,6 +1,7 @@
 import pytest
 import pandas as pd
 import numpy as np
+import time
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
@@ -116,3 +117,38 @@ def test_health_endpoint(client):
     data = response.json()
     assert data["status"] == "healthy"
     assert "timestamp" in data
+
+    
+# @pytest.mark.perfomance           
+# def test_predict_response_time(client):
+#     """Ensure predict endpoint responds within acceptable time."""
+#     payload = {
+#         "product_name": "Test Product",
+#         "brand": "BrandX",
+#         "category": "Dairy",
+#         "adulterant": "None",
+#         "detection_method": "Microscopy",
+#         "severity": "Low",
+#         "action_taken": "Monitor"
+#     }
+#     start_time = time.time()
+#     response = client.post("/predict", json=payload)
+#     duration = time.time() - start_time
+
+#     assert response.status_code == 200
+#     assert duration < 1.0, f"Response took too long: {duration} seconds"
+    
+    
+@pytest.mark.unit
+def test_predict_missing_field(client):
+    """Ensure API handles missing fields gracefully."""
+    payload = {
+        "brand": "BrandX", 
+        "category": "Dairy",
+        "adulterant": "None",
+        "detection_method": "Microscopy",
+        "severity": "Low",
+        "action_taken": "Monitor"
+    }
+    response = client.post("/predict", json=payload)
+    assert response.status_code in [400, 422], "API did not return error for missing fields"
