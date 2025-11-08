@@ -222,6 +222,7 @@ logger.info("Successfully initialized PredictionPipeline")
 async def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
+
 @app.post("/predict", response_class=JSONResponse)
 async def predict_json(request: PredictionRequest):
     try:
@@ -240,26 +241,33 @@ async def predict_json(request: PredictionRequest):
         logger.debug(f"Created DataFrame with columns: {input_df.columns.tolist()}")
 
         # Preprocess data
-        transformed_data = pipeline.preprocess_data(input_df)
-        
-        # Make prediction
-        predicted_class, class_probabilities = pipeline.predict(transformed_data)
-        
-        # Prepare response
-        response = {
-            'prediction': predicted_class,
-            'confidence_scores': class_probabilities,
-            'input_data': data,
-            'timestamp': datetime.now().isoformat()
-        }
-        
-        logger.info("Successfully generated prediction")
+        try:
+            transformed_data = pipeline.preprocess_data(input_df)
+            predicted_class, class_probabilities = pipeline.predict(transformed_data)
+            response = {
+                'prediction': predicted_class,
+                'confidence_scores': class_probabilities,
+                'input_data': data,
+                'timestamp': datetime.now().isoformat()
+            }
+        except Exception as e:
+            logger.warning(f"Prediction endpoint failed: {str(e)}")
+            response = {
+                'prediction': None,
+                'confidence_scores': None,
+                'input_data': data,
+                'timestamp': datetime.now().isoformat(),
+                'warning': 'Prediction failed: Model may not be fitted yet.'
+            }
+
+        logger.info("Returning response from /predict")
         return response
-        
+
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}")
         logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+
 
 @app.post("/predict-form", response_class=HTMLResponse)
 async def predict_form(request: Request):
